@@ -1,13 +1,21 @@
-use std::{borrow::Borrow, cmp::{max, min}, collections::HashMap, fmt::Display, ops::Div, path::Path, sync::{Arc, Mutex}, time};
-use rayon::prelude::*;
-use tokio::{fs::OpenOptions, io::{AsyncBufReadExt, BufReader}, sync::mpsc::{self, Sender}};
 use anyhow::Result;
+use rayon::prelude::*;
+use std::{
+    collections::HashMap,
+    fmt::Display,
+    path::Path,
+    time,
+};
+use tokio::{
+    fs::OpenOptions,
+    io::{AsyncBufReadExt, BufReader},
+    sync::mpsc::{self, Sender},
+};
 
 /// name, value
 #[derive(Clone)]
 struct Reading(String, f32);
 
-/// min, mean, max
 #[derive(Clone)]
 struct Stored {
     pub min: f32,
@@ -47,9 +55,8 @@ impl Stored {
     }
 }
 
-
 #[tokio::main]
-async fn main() -> anyhow::Result<()>{
+async fn main() -> anyhow::Result<()> {
     println!("Hello, world!");
     let started = time::SystemTime::now();
 
@@ -64,22 +71,24 @@ async fn main() -> anyhow::Result<()>{
 
     let mut values: HashMap<String, Stored> = HashMap::new();
     while let Some(this) = rx.recv().await {
-        values.entry(this.0)
+        values
+            .entry(this.0)
             .and_modify(|current| {
                 current.update(this.1);
             })
             .or_insert(Stored::new(this.1));
     }
 
-    let mut sorted: Vec<(String, Stored)> = values.into_par_iter().collect::<Vec<(String, Stored)>>();
+    let mut sorted: Vec<(String, Stored)> =
+        values.into_par_iter().collect::<Vec<(String, Stored)>>();
     sorted.sort_by(|a, b| a.0.cmp(&b.0));
     let l = sorted.len();
-    let mut i = sorted.into_iter().enumerate();
+    let i = sorted.into_iter().enumerate();
 
     print!("{{");
-    while let Some((idx, (name, nums))) = i.next() {
+    for (idx, (name, nums)) in i {
         print!("{name}={nums}");
-        if idx+1 != l {
+        if idx + 1 != l {
             print!(", ");
         }
     }
@@ -93,7 +102,9 @@ async fn main() -> anyhow::Result<()>{
 }
 
 async fn read_file<P>(filename: P, tx: Sender<Reading>) -> Result<usize>
-where P: AsRef<Path>, {
+where
+    P: AsRef<Path>,
+{
     let file = OpenOptions::new()
         .read(true)
         .write(false)
@@ -114,11 +125,11 @@ where P: AsRef<Path>, {
 
 fn split_line(line: String) -> Result<Option<Reading>> {
     if line.starts_with('#') {
-        return Ok(None)
+        return Ok(None);
     }
-    
+
     if let Some((lhs, rhs)) = line.split_once(';') {
-        return Ok(Some(Reading(format!("{lhs}"), rhs.parse()?)))
+        return Ok(Some(Reading(lhs.to_string(), rhs.parse()?)));
     }
 
     Ok(None)
